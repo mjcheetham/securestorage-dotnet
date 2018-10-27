@@ -1,6 +1,6 @@
 using System;
-using System.Collections.Generic;
 using System.Runtime.InteropServices;
+using System.Text;
 using static Mjcheetham.SecureStorage.NativeMethods.MacOS;
 
 namespace Mjcheetham.SecureStorage
@@ -18,15 +18,19 @@ namespace Mjcheetham.SecureStorage
 
         #endregion
 
+        #region Private Properties
+
         private uint UserNameLength => (uint)UserName.Length;
 
         private string UserName => Environment.UserName;
 
+        #endregion
+
         #region ISecureStore
 
-        public byte[] GetData(string key)
+        public string Get(string key)
         {
-            uint keyLength = (uint) key.Length;
+            var keyLength = (uint) key.Length;
 
             IntPtr passwordData = IntPtr.Zero;
             IntPtr itemRef = IntPtr.Zero;
@@ -39,10 +43,10 @@ namespace Mjcheetham.SecureStorage
                         out uint passwordLength, out passwordData, out itemRef)
                 );
 
-                byte[] result = new byte[passwordLength];
-                Marshal.Copy(passwordData, result, 0, result.Length);
+                var data = new byte[passwordLength];
+                Marshal.Copy(passwordData, data, 0, data.Length);
 
-                return result;
+                return Encoding.UTF8.GetString(data);
             }
             finally
             {
@@ -58,10 +62,12 @@ namespace Mjcheetham.SecureStorage
             }
         }
 
-        public void SetData(string key, byte[] data)
+        public void AddOrUpdate(string key, string value)
         {
-            uint keyLength = (uint) key.Length;
-            uint dataLength = (uint) data.Length;
+            byte[] data = Encoding.UTF8.GetBytes(value);
+
+            var keyLength = (uint) key.Length;
+            var dataLength = (uint) data.Length;
 
             IntPtr passwordData = IntPtr.Zero;
             IntPtr itemRef = IntPtr.Zero;
@@ -71,7 +77,7 @@ namespace Mjcheetham.SecureStorage
                 // Check if an entry already exists in the keychain
                 SecKeychainFindGenericPassword(
                     IntPtr.Zero, keyLength, key, UserNameLength, UserName,
-                    out uint passwordLength, out passwordData, out itemRef);
+                    out uint _, out passwordData, out itemRef);
 
                 if (itemRef != IntPtr.Zero) // Update existing entry
                 {
@@ -104,7 +110,7 @@ namespace Mjcheetham.SecureStorage
             }
         }
 
-        public bool DeleteData(string key)
+        public bool Remove(string key)
         {
             uint keyLength = (uint) key.Length;
 
@@ -115,7 +121,7 @@ namespace Mjcheetham.SecureStorage
             {
                 SecKeychainFindGenericPassword(
                     IntPtr.Zero, keyLength, key, UserNameLength, UserName,
-                    out uint passwordLength, out passwordData, out itemRef);
+                    out _, out passwordData, out itemRef);
 
                 if (itemRef != IntPtr.Zero)
                 {
@@ -140,11 +146,6 @@ namespace Mjcheetham.SecureStorage
                     CFRelease(itemRef);
                 }
             }
-        }
-
-        public IEnumerable<string> ListKeys()
-        {
-            throw new NotImplementedException();
         }
 
         #endregion

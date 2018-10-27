@@ -1,4 +1,3 @@
-using System.Text;
 using Xunit;
 
 namespace Mjcheetham.SecureStorage.UnitTests
@@ -8,24 +7,21 @@ namespace Mjcheetham.SecureStorage.UnitTests
         [Fact]
         public void MacOSKeychain_ReadWriteDelete()
         {
-            var keychain = MacOSKeychain.OpenDefault();
+            MacOSKeychain keychain = MacOSKeychain.OpenDefault();
 
-            string testKey = "test123";
-            string testString = "Hello, World!";
-            byte[] testData = Encoding.UTF8.GetBytes(testString);
+            const string testKey = "test123";
+            const string testValue = "Hello, World!";
 
             // Write
-            keychain.SetData(testKey, testData);
+            keychain.AddOrUpdate(testKey, testValue);
 
             // Read
-            var outData = keychain.GetData(testKey);
-            var outString = Encoding.UTF8.GetString(outData);
+            string outputValue = keychain.Get(testKey);
 
-            Assert.Equal(testData, outData);
-            Assert.Equal(testString, outString);
+            Assert.Equal(testValue, outputValue);
 
             // Delete
-            keychain.DeleteData(testKey);
+            keychain.Remove(testKey);
         }
     }
 }

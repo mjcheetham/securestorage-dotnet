@@ -1,45 +1,48 @@
 using System;
+using System.Collections.Generic;
 using System.Runtime.InteropServices;
 
 namespace Mjcheetham.SecureStorage
 {
-    internal static class NativeMethods
+    internal static partial class NativeMethods
     {
-        public static class Windows
-        {
-        }
-
+        // https://developer.apple.com/documentation/security/keychain_services/keychain_items
         public static class MacOS
         {
             private const string CoreFoundationFrameworkLib = "/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation";
             private const string SecurityFrameworkLib = "/System/Library/Frameworks/Security.framework/Security";
 
-            private const int OK = 0;
-            private const int ErrorSecDuplicateItem = -25299;
-            private const int ErrorSecItemNotFound = -25300;
-            private const int ErrorSecInteractionNotAllowed = -25308;
+            public const int OK = 0;
+            public const int ErrorSecNoSuchKeychain = -25294;
+            public const int ErrorSecInvalidKeychain = -25295;
+            public const int ErrorSecAuthFailed = -25293;
+            public const int ErrorSecDuplicateItem = -25299;
+            public const int ErrorSecItemNotFound = -25300;
+            public const int ErrorSecInteractionNotAllowed = -25308;
+            public const int ErrorSecInteractionRequired = -25315;
 
-            public static void ThrowOnError(int error, string defaultErrorMessage = null)
+            public static void ThrowOnError(int error, string defaultErrorMessage = "Unknown error.")
             {
                 switch (error)
                 {
                     case OK:
                         return;
+                    case ErrorSecNoSuchKeychain:
+                        throw new InvalidOperationException("The keychain does not exist.");
+                    case ErrorSecInvalidKeychain:
+                        throw new InvalidOperationException("The keychain is not valid.");
+                    case ErrorSecAuthFailed:
+                        throw new InvalidOperationException("Authorization/Authentication failed.");
                     case ErrorSecDuplicateItem:
-                        throw new Exception("Item already exists");
+                        throw new ArgumentException("The item already exists.");
                     case ErrorSecItemNotFound:
-                        throw new Exception("Item does not exist");
+                        throw new KeyNotFoundException("The item cannot be found.");
                     case ErrorSecInteractionNotAllowed:
-                        throw new Exception("Interaction not allowed");
+                        throw new InvalidOperationException("Interaction with the Security Server is not allowed.");
+                    case ErrorSecInteractionRequired:
+                        throw new InvalidOperationException("User interaction is required.");
                     default:
-                        if (defaultErrorMessage == null)
-                        {
-                            throw new Exception($"Unknown error {error}");
-                        }
-                        else
-                        {
-                            throw new Exception($"{defaultErrorMessage}. Unknown error {error}");
-                        }
+                        throw new Exception($"{defaultErrorMessage} ({error})");
                 }
             }
 
