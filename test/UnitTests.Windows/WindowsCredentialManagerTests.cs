@@ -10,7 +10,6 @@ namespace Mjcheetham.SecureStorage.UnitTests
         {
             WindowsCredentialManager credManager = WindowsCredentialManager.OpenDefault();
 
-
             const string key = "secretkey";
             const string userName = "john.doe";
             const string password = "letmein123";

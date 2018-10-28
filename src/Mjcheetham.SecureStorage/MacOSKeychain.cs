@@ -6,28 +6,27 @@ using static Mjcheetham.SecureStorage.NativeMethods.MacOS;
 
 namespace Mjcheetham.SecureStorage
 {
-    public class MacOSKeychain : ISecureStore
+    public class MacOSKeychain : ICredentialStore
     {
         #region Constructors
 
+        /// <summary>
+        /// Open the default keychain (current user's login keychain).
+        /// </summary>
+        /// <returns>Default keychain.</returns>
         public static MacOSKeychain OpenDefault()
         {
             return new MacOSKeychain();
         }
 
-        private MacOSKeychain() { }
+        private MacOSKeychain()
+        {
+            PlatformUtils.EnsureMacOS();
+        }
 
         #endregion
 
-        #region Private Properties
-
-        private uint UserNameLength => (uint)UserName.Length;
-
-        private string UserName => Environment.UserName;
-
-        #endregion
-
-        #region ISecureStore
+        #region ICredentialStore
 
         public ICredential Get(string key)
         {

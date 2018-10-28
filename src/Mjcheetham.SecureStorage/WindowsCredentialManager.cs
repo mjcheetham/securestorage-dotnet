@@ -6,20 +6,27 @@ using static Mjcheetham.SecureStorage.NativeMethods.Windows;
 
 namespace Mjcheetham.SecureStorage
 {
-    public class WindowsCredentialManager : ISecureStore
+    public class WindowsCredentialManager : ICredentialStore
     {
         #region Constructors
 
+        /// <summary>
+        /// Open the Windows Credential Manager vault for the current user.
+        /// </summary>
+        /// <returns>Current user's Credential Manager vault.</returns>
         public static WindowsCredentialManager OpenDefault()
         {
             return new WindowsCredentialManager();
         }
 
-        private WindowsCredentialManager() { }
+        private WindowsCredentialManager()
+        {
+            PlatformUtils.EnsureWindows();
+        }
 
         #endregion
 
-        #region ISecureStore
+        #region ICredentialStore
 
         public ICredential Get(string key)
         {

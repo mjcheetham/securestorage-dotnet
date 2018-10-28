@@ -2,7 +2,10 @@
 
 namespace Mjcheetham.SecureStorage
 {
-    public interface ISecureStore
+    /// <summary>
+    /// Represents a secure storage location for <see cref="ICredential"/>s.
+    /// </summary>
+    public interface ICredentialStore
     {
         /// <summary>
         /// Get credential from the store with the specified key.
@@ -25,24 +28,5 @@ namespace Mjcheetham.SecureStorage
         /// <param name="key">Key of credential to delete.</param>
         /// <returns>True if the credential was deleted, false otherwise.</returns>
         bool Remove(string key);
-    }
-
-    public interface ICredential
-    {
-        string UserName { get; }
-        string Password { get; }
-    }
-
-    public class Credential : ICredential
-    {
-        public Credential(string userName, string password)
-        {
-            UserName = userName;
-            Password = password;
-        }
-
-        public string UserName { get; }
-
-        public string Password { get; }
     }
 }
