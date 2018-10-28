@@ -1,14 +1,15 @@
 using System;
+using System.Runtime.InteropServices;
 
 namespace Mjcheetham.SecureStorage
 {
     internal static class PlatformUtils
     {
-        public static bool IsMacOS => Environment.OSVersion.Platform == PlatformID.MacOSX;
+        public static bool IsMacOS => RuntimeInformation.IsOSPlatform(OSPlatform.OSX);
 
-        public static bool IsWindows => Environment.OSVersion.Platform == PlatformID.Win32NT;
+        public static bool IsWindows => RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
 
-        public static bool IsUnix => Environment.OSVersion.Platform == PlatformID.Unix;
+        public static bool IsUnix => RuntimeInformation.IsOSPlatform(OSPlatform.Linux);
 
         public static void EnsureMacOS()
         {

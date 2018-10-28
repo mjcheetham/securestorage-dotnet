@@ -7,7 +7,7 @@ namespace Mjcheetham.SecureStorage
     {
         public static T[] ToStructArray<T>(byte[] source) where T : struct
         {
-            var destination = new T[source.Length / Marshal.SizeOf(typeof(T))];
+            var destination = new T[source.Length / Marshal.SizeOf<T>()];
             GCHandle handle = GCHandle.Alloc(destination, GCHandleType.Pinned);
             try
             {
