@@ -1,2 +1,3 @@
-# securestorage-dotnet
-.NET API for interacting with OS secure storage systems (Windows Credential Manager, macOS Keychain, etc).
+# .NET Secure OS Credential Storage APIs
+
+_.NET API for interacting with operating system secure credential storage systems such as Windows Credential Manager, or macOS Keychain._
