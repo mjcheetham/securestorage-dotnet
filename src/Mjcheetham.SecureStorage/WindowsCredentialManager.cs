@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using System.Text;
 using static Mjcheetham.SecureStorage.NativeMethods.Windows;
@@ -20,7 +21,7 @@ namespace Mjcheetham.SecureStorage
 
         #region ISecureStore
 
-        public string Get(string key)
+        public ICredential Get(string key)
         {
             IntPtr credPtr = IntPtr.Zero;
 
@@ -31,13 +32,18 @@ namespace Mjcheetham.SecureStorage
                     "Failed to read item from store."
                 );
 
-                Credential credential = Marshal.PtrToStructure<Credential>(credPtr);
+                Win32Credential credential = Marshal.PtrToStructure<Win32Credential>(credPtr);
 
-                byte[] passwordBytes = new byte[credential.CredentialBlobSize];
+                var userName = credential.UserName;
 
-                Marshal.Copy(credential.CredentialBlob, passwordBytes, 0, credential.CredentialBlobSize);
+                byte[] passwordBytes = NativeMethods.ToByteArray(credential.CredentialBlob, credential.CredentialBlobSize);
+                var password = Encoding.Unicode.GetString(passwordBytes);
 
-                return Encoding.Unicode.GetString(passwordBytes);
+                return new Credential(userName, password);
+            }
+            catch (KeyNotFoundException)
+            {
+                return null;
             }
             finally
             {
@@ -48,52 +54,50 @@ namespace Mjcheetham.SecureStorage
             }
         }
 
-        public void AddOrUpdate(string key, string value)
+        public void AddOrUpdate(string key, ICredential credential)
         {
-            byte[] data = Encoding.Unicode.GetBytes(value);
+            byte[] passwordBytes = Encoding.Unicode.GetBytes(credential.Password);
 
-            var credential = new Credential
+            var w32Credential = new Win32Credential
             {
                 Type = CredentialType.Generic,
                 TargetName = key,
-                CredentialBlob = Marshal.AllocCoTaskMem(data.Length),
-                CredentialBlobSize = data.Length,
+                CredentialBlob = Marshal.AllocCoTaskMem(passwordBytes.Length),
+                CredentialBlobSize = passwordBytes.Length,
                 Persist = CredentialPersist.LocalMachine,
                 AttributeCount = 0,
-                UserName = Environment.UserName,
+                UserName = credential.UserName,
             };
 
             try
             {
-                Marshal.Copy(data, 0, credential.CredentialBlob, data.Length);
+                Marshal.Copy(passwordBytes, 0, w32Credential.CredentialBlob, passwordBytes.Length);
 
                 ThrowOnError(
-                    CredWrite(ref credential, 0),
+                    CredWrite(ref w32Credential, 0),
                     "Failed to write item to store."
                 );
             }
             finally
             {
-                if (credential.CredentialBlob != IntPtr.Zero)
+                if (w32Credential.CredentialBlob != IntPtr.Zero)
                 {
-                    Marshal.FreeCoTaskMem(credential.CredentialBlob);
+                    Marshal.FreeCoTaskMem(w32Credential.CredentialBlob);
                 }
             }
         }
 
         public bool Remove(string key)
         {
-            if (!CredDelete(key, CredentialType.Generic, 0))
+            try
             {
-                int error = Marshal.GetLastWin32Error();
-                if (error == ERROR_NOT_FOUND)
-                {
-                    return false;
-                }
-                ThrowException(error, "Failed to delete item from store.");
+                ThrowOnError(CredDelete(key, CredentialType.Generic, 0));
+                return true;
             }
-
-            return true;
+            catch (KeyNotFoundException)
+            {
+                return false;
+            }
         }
 
         #endregion

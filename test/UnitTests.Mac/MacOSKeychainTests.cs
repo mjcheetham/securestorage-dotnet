@@ -1,3 +1,5 @@
+using System.Globalization;
+using System.Xml;
 using Xunit;
 
 namespace Mjcheetham.SecureStorage.UnitTests
@@ -9,19 +11,23 @@ namespace Mjcheetham.SecureStorage.UnitTests
         {
             MacOSKeychain keychain = MacOSKeychain.OpenDefault();
 
-            const string testKey = "test123";
-            const string testValue = "Hello, World!";
+            const string key = "secretkey";
+            const string userName = "john.doe";
+            const string password = "letmein123";
+            var credential = new Credential(userName, password);
 
             // Write
-            keychain.AddOrUpdate(testKey, testValue);
+            keychain.AddOrUpdate(key, credential);
 
             // Read
-            string outputValue = keychain.Get(testKey);
+            ICredential outCredential = keychain.Get(key);
 
-            Assert.Equal(testValue, outputValue);
+            Assert.NotNull(outCredential);
+            Assert.Equal(credential.UserName, outCredential.UserName);
+            Assert.Equal(credential.Password, outCredential.Password);
 
             // Delete
-            keychain.Remove(testKey);
+            keychain.Remove(key);
         }
     }
 }

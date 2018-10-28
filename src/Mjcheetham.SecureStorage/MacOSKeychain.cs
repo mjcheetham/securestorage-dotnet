@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Text;
 using static Mjcheetham.SecureStorage.NativeMethods.MacOS;
@@ -28,25 +29,29 @@ namespace Mjcheetham.SecureStorage
 
         #region ISecureStore
 
-        public string Get(string key)
+        public ICredential Get(string key)
         {
-            var keyLength = (uint) key.Length;
-
             IntPtr passwordData = IntPtr.Zero;
             IntPtr itemRef = IntPtr.Zero;
 
             try
             {
+                // Find the item (itemRef) and password (passwordData) in the keychain
                 ThrowOnError(
                     SecKeychainFindGenericPassword(
-                        IntPtr.Zero, keyLength, key, UserNameLength, UserName,
+                        IntPtr.Zero, (uint) key.Length, key, 0, null,
                         out uint passwordLength, out passwordData, out itemRef)
                 );
 
-                var data = new byte[passwordLength];
-                Marshal.Copy(passwordData, data, 0, data.Length);
+                // Get and decode the user name from the 'account name' attribute
+                byte[] userNameBytes = GetAccountNameAttributeData(itemRef);
+                string userName = Encoding.UTF8.GetString(userNameBytes);
 
-                return Encoding.UTF8.GetString(data);
+                // Decode the password from the raw data
+                byte[] passwordBytes = NativeMethods.ToByteArray(passwordData, passwordLength);
+                string password = Encoding.UTF8.GetString(passwordBytes);
+
+                return new Credential(userName, password);
             }
             finally
             {
@@ -62,12 +67,9 @@ namespace Mjcheetham.SecureStorage
             }
         }
 
-        public void AddOrUpdate(string key, string value)
+        public void AddOrUpdate(string key, ICredential credential)
         {
-            byte[] data = Encoding.UTF8.GetBytes(value);
-
-            var keyLength = (uint) key.Length;
-            var dataLength = (uint) data.Length;
+            byte[] passwordBytes = Encoding.UTF8.GetBytes(credential.Password);
 
             IntPtr passwordData = IntPtr.Zero;
             IntPtr itemRef = IntPtr.Zero;
@@ -76,25 +78,24 @@ namespace Mjcheetham.SecureStorage
             {
                 // Check if an entry already exists in the keychain
                 SecKeychainFindGenericPassword(
-                    IntPtr.Zero, keyLength, key, UserNameLength, UserName,
+                    IntPtr.Zero, (uint) key.Length, key, (uint) credential.UserName.Length, credential.UserName,
                     out uint _, out passwordData, out itemRef);
 
                 if (itemRef != IntPtr.Zero) // Update existing entry
                 {
                     ThrowOnError(
-                        SecKeychainItemModifyAttributesAndData(itemRef, IntPtr.Zero, (uint) data.Length, data),
+                        SecKeychainItemModifyAttributesAndData(itemRef, IntPtr.Zero, (uint) passwordBytes.Length, passwordBytes),
                         "Could not update existing item"
                     );
                 }
                 else // Create new entry
                 {
                     ThrowOnError(
-                        SecKeychainAddGenericPassword(IntPtr.Zero, keyLength, key, UserNameLength,
-                            UserName, dataLength, data, out itemRef),
+                        SecKeychainAddGenericPassword(IntPtr.Zero, (uint) key.Length, key, (uint) credential.UserName.Length,
+                            credential.UserName, (uint) passwordBytes.Length, passwordBytes, out itemRef),
                         "Could not create new item"
                     );
                 }
-
             }
             finally
             {
@@ -112,15 +113,13 @@ namespace Mjcheetham.SecureStorage
 
         public bool Remove(string key)
         {
-            uint keyLength = (uint) key.Length;
-
             IntPtr passwordData = IntPtr.Zero;
             IntPtr itemRef = IntPtr.Zero;
 
             try
             {
                 SecKeychainFindGenericPassword(
-                    IntPtr.Zero, keyLength, key, UserNameLength, UserName,
+                    IntPtr.Zero, (uint) key.Length, key, 0, null,
                     out _, out passwordData, out itemRef);
 
                 if (itemRef != IntPtr.Zero)
@@ -144,6 +143,68 @@ namespace Mjcheetham.SecureStorage
                 if (itemRef != IntPtr.Zero)
                 {
                     CFRelease(itemRef);
+                }
+            }
+        }
+
+        #endregion
+
+        #region Private Methods
+
+        private static byte[] GetAccountNameAttributeData(IntPtr itemRef)
+        {
+            IntPtr tagArrayPtr = IntPtr.Zero;
+            IntPtr formatArrayPtr = IntPtr.Zero;
+            IntPtr attrListPtr = IntPtr.Zero; // SecKeychainAttributeList
+
+            try
+            {
+                // Extract the user name by querying for the item's 'account' attribute
+                tagArrayPtr = Marshal.AllocCoTaskMem(sizeof(SecKeychainAttrType));
+                Marshal.Copy(new[] {(int) SecKeychainAttrType.AccountItem}, 0, tagArrayPtr, 1);
+
+                formatArrayPtr = Marshal.AllocCoTaskMem(sizeof(CssmDbAttributeFormat));
+                Marshal.Copy(new[] {(int) CssmDbAttributeFormat.String}, 0, formatArrayPtr, 1);
+
+                var attributeInfo = new SecKeychainAttributeInfo
+                {
+                    Count = 1,
+                    Tag = tagArrayPtr,
+                    Format = formatArrayPtr,
+                };
+
+                ThrowOnError(
+                    SecKeychainItemCopyAttributesAndData(
+                        itemRef, ref attributeInfo,
+                        IntPtr.Zero, out attrListPtr, out var _, IntPtr.Zero)
+                );
+
+                SecKeychainAttributeList attrList = Marshal.PtrToStructure<SecKeychainAttributeList>(attrListPtr);
+                Debug.Assert(attrList.Count == 1);
+
+                byte[] attrListArrayBytes = NativeMethods.ToByteArray(
+                    attrList.Attributes, Marshal.SizeOf<SecKeychainAttribute>() * attrList.Count);
+
+                SecKeychainAttribute[] attributes = NativeMethods.ToStructArray<SecKeychainAttribute>(attrListArrayBytes);
+                Debug.Assert(attributes.Length == 1);
+
+                return NativeMethods.ToByteArray(attributes[0].Data, attributes[0].Length);
+            }
+            finally
+            {
+                if (tagArrayPtr != IntPtr.Zero)
+                {
+                    Marshal.FreeCoTaskMem(tagArrayPtr);
+                }
+
+                if (formatArrayPtr != IntPtr.Zero)
+                {
+                    Marshal.FreeCoTaskMem(formatArrayPtr);
+                }
+
+                if (attrListPtr != IntPtr.Zero)
+                {
+                    SecKeychainItemFreeAttributesAndData(attrListPtr, IntPtr.Zero);
                 }
             }
         }

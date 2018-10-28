@@ -10,19 +10,24 @@ namespace Mjcheetham.SecureStorage.UnitTests
         {
             WindowsCredentialManager credManager = WindowsCredentialManager.OpenDefault();
 
-            const string testKey = "test123";
-            const string testValue = "Hello, World!";
+
+            const string key = "secretkey";
+            const string userName = "john.doe";
+            const string password = "letmein123";
+            var credential = new Credential(userName, password);
 
             // Write
-            credManager.AddOrUpdate(testKey, testValue);
+            credManager.AddOrUpdate(key, credential);
 
             // Read
-            string outputValue = credManager.Get(testKey);
+            ICredential outCredential = credManager.Get(key);
 
-            Assert.Equal(testValue, outputValue);
+            Assert.NotNull(outCredential);
+            Assert.Equal(credential.UserName, outCredential.UserName);
+            Assert.Equal(credential.Password, outCredential.Password);
 
             // Delete
-            credManager.Remove(testKey);
+            credManager.Remove(key);
         }
     }
 }

@@ -5,25 +5,44 @@ namespace Mjcheetham.SecureStorage
     public interface ISecureStore
     {
         /// <summary>
-        /// Get item from the store with the specified key.
+        /// Get credential from the store with the specified key.
         /// </summary>
-        /// <param name="key">Key for item to retrieve.</param>
-        /// <returns>Stored value.</returns>
-        /// <exception cref="KeyNotFoundException">Thrown if no item exists in the store with the specified key.</exception>
-        string Get(string key);
+        /// <param name="key">Key for credential to retrieve.</param>
+        /// <returns>Stored credential.</returns>
+        /// <exception cref="KeyNotFoundException">Thrown if no credential exists in the store with the specified key.</exception>
+        ICredential Get(string key);
 
         /// <summary>
-        /// Add or update value in the store with the specified key.
+        /// Add or update credential in the store with the specified key.
         /// </summary>
-        /// <param name="key">Key for item to add/update.</param>
-        /// <param name="value">Value to store.</param>
-        void AddOrUpdate(string key, string value);
+        /// <param name="key">Key for credential to add/update.</param>
+        /// <param name="credential">Credential to store.</param>
+        void AddOrUpdate(string key, ICredential credential);
 
         /// <summary>
-        /// Delete item from the store with the specified key.
+        /// Delete credential from the store with the specified key.
         /// </summary>
-        /// <param name="key">Key of item to delete.</param>
-        /// <returns>True if the item was deleted, false otherwise.</returns>
+        /// <param name="key">Key of credential to delete.</param>
+        /// <returns>True if the credential was deleted, false otherwise.</returns>
         bool Remove(string key);
+    }
+
+    public interface ICredential
+    {
+        string UserName { get; }
+        string Password { get; }
+    }
+
+    public class Credential : ICredential
+    {
+        public Credential(string userName, string password)
+        {
+            UserName = userName;
+            Password = password;
+        }
+
+        public string UserName { get; }
+
+        public string Password { get; }
     }
 }

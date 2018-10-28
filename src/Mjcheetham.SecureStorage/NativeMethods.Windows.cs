@@ -13,31 +13,26 @@ namespace Mjcheetham.SecureStorage
         {
             private const string Advapi32 = "advapi32.dll";
 
-            public const int ERROR_NO_SUCH_LOGON_SESSION = 0;
-            public const int ERROR_NOT_FOUND = 0x490;
+            private const int ERROR_NO_SUCH_LOGON_SESSION = 0;
+            private const int ERROR_NOT_FOUND = 0x490;
 
             public static void ThrowOnError(bool success, string defaultErrorMessage = null)
             {
                 int error = Marshal.GetLastWin32Error();
                 if (!success)
                 {
-                    ThrowException(error, defaultErrorMessage);
-                }
-            }
-
-            public static void ThrowException(int win32Error, string defaultErrorMessage = null)
-            {
-                switch (win32Error)
-                {
-                    case ERROR_NO_SUCH_LOGON_SESSION:
-                        throw new InvalidOperationException(
+                    switch (error)
+                    {
+                        case ERROR_NO_SUCH_LOGON_SESSION:
+                            throw new InvalidOperationException(
                                 "The logon session does not exist or there is no credential set associated with this logon session.",
-                                new Win32Exception(win32Error)
+                                new Win32Exception(error)
                             );
-                    case ERROR_NOT_FOUND:
-                        throw new KeyNotFoundException("The item cannot be found.", new Win32Exception(win32Error));
-                    default:
-                        throw new Win32Exception(win32Error, defaultErrorMessage);
+                        case ERROR_NOT_FOUND:
+                            throw new KeyNotFoundException("The item cannot be found.", new Win32Exception(error));
+                        default:
+                            throw new Win32Exception(error, defaultErrorMessage);
+                    }
                 }
             }
 
@@ -57,7 +52,7 @@ namespace Mjcheetham.SecureStorage
             }
 
             [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
-            public struct Credential
+            public struct Win32Credential
             {
                 public int Flags;
                 public CredentialType Type;
@@ -82,7 +77,7 @@ namespace Mjcheetham.SecureStorage
 
             [DllImport(Advapi32, EntryPoint = "CredWriteW", CharSet = CharSet.Unicode, SetLastError = true)]
             public static extern bool CredWrite(
-                ref Credential credential,
+                ref Win32Credential credential,
                 int flags);
 
             [DllImport(Advapi32, EntryPoint = "CredDeleteW", CharSet = CharSet.Unicode, SetLastError = true)]
