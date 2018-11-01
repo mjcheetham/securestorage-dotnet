@@ -4,7 +4,7 @@
         <TargetFramework>netstandard1.3</TargetFramework>
         <LangVersion>latest</LangVersion>
         <PackageId>Mjcheetham.SecureStorage</PackageId>
-        <Version>0.1-alpha</Version>
+        <Version>0.1.1-alpha</Version>
         <Title>.NET Secure OS Credential Storage APIs</Title>
         <Description>.NET API for interacting with operating system secure credential storage systems such as Windows Credential Manager, or macOS Keychain.</Description>
         <Authors>Matthew John Cheetham</Authors>

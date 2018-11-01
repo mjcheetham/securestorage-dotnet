@@ -1,5 +1,4 @@
-using System.Globalization;
-using System.Xml;
+using System;
 using Xunit;
 
 namespace Mjcheetham.SecureStorage.UnitTests
@@ -28,6 +27,30 @@ namespace Mjcheetham.SecureStorage.UnitTests
 
             // Delete
             keychain.Remove(key);
+        }
+
+        [Fact]
+        public void MacOSKeychain_Get_KeyNotFound_ReturnsNull()
+        {
+            MacOSKeychain keychain = MacOSKeychain.OpenDefault();
+
+            // Unique key; guaranteed not to exist!
+            string key = Guid.NewGuid().ToString("N");
+
+            ICredential credential = keychain.Get(key);
+            Assert.Null(credential);
+        }
+
+        [Fact]
+        public void MacOSKeychain_Remove_KeyNotFound_ReturnsFalse()
+        {
+            MacOSKeychain keychain = MacOSKeychain.OpenDefault();
+
+            // Unique key; guaranteed not to exist!
+            string key = Guid.NewGuid().ToString("N");
+
+            bool result = keychain.Remove(key);
+            Assert.False(result);
         }
     }
 }

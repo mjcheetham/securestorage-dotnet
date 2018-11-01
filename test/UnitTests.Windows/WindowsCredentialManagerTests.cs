@@ -28,5 +28,29 @@ namespace Mjcheetham.SecureStorage.UnitTests
             // Delete
             credManager.Remove(key);
         }
+
+        [Fact]
+        public void WindowsCredentialManager_Get_KeyNotFound_ReturnsNull()
+        {
+            WindowsCredentialManager credManager = WindowsCredentialManager.OpenDefault();
+
+            // Unique key; guaranteed not to exist!
+            string key = Guid.NewGuid().ToString("N");
+
+            ICredential credential = credManager.Get(key);
+            Assert.Null(credential);
+        }
+
+        [Fact]
+        public void WindowsCredentialManager_Remove_KeyNotFound_ReturnsFalse()
+        {
+            WindowsCredentialManager credManager = WindowsCredentialManager.OpenDefault();
+
+            // Unique key; guaranteed not to exist!
+            string key = Guid.NewGuid().ToString("N");
+
+            bool result = credManager.Remove(key);
+            Assert.False(result);
+        }
     }
 }

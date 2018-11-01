@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -51,6 +52,10 @@ namespace Mjcheetham.SecureStorage
                 string password = Encoding.UTF8.GetString(passwordBytes);
 
                 return new Credential(userName, password);
+            }
+            catch (KeyNotFoundException)
+            {
+                return null;
             }
             finally
             {
@@ -130,6 +135,10 @@ namespace Mjcheetham.SecureStorage
                     return true;
                 }
 
+                return false;
+            }
+            catch (KeyNotFoundException)
+            {
                 return false;
             }
             finally
