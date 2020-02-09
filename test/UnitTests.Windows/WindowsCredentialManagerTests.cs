@@ -1,4 +1,5 @@
 using System;
+using Mjcheetham.SecureStorage.Windows;
 using Xunit;
 
 namespace Mjcheetham.SecureStorage.UnitTests
@@ -8,48 +9,48 @@ namespace Mjcheetham.SecureStorage.UnitTests
         [Fact]
         public void WindowsCredentialManager_ReadWriteDelete()
         {
-            WindowsCredentialManager credManager = WindowsCredentialManager.OpenDefault();
+            WindowsCredentialManager credManager = WindowsCredentialManager.Open();
 
-            const string key = "secretkey";
+            const string targetName = "secretkey";
             const string userName = "john.doe";
             const string password = "letmein123";
-            var credential = new Credential(userName, password);
+            var credential = new WindowsCredential(targetName, userName, password);
 
             // Write
-            credManager.AddOrUpdate(key, credential);
+            credManager.Write(credential);
 
             // Read
-            ICredential outCredential = credManager.Get(key);
+            WindowsCredential outCredential = credManager.Read(targetName);
 
             Assert.NotNull(outCredential);
             Assert.Equal(credential.UserName, outCredential.UserName);
             Assert.Equal(credential.Password, outCredential.Password);
 
             // Delete
-            credManager.Remove(key);
+            credManager.Delete(targetName);
         }
 
         [Fact]
-        public void WindowsCredentialManager_Get_KeyNotFound_ReturnsNull()
+        public void WindowsCredentialManager_Read_KeyNotFound_ReturnsNull()
         {
-            WindowsCredentialManager credManager = WindowsCredentialManager.OpenDefault();
+            WindowsCredentialManager credManager = WindowsCredentialManager.Open();
 
             // Unique key; guaranteed not to exist!
             string key = Guid.NewGuid().ToString("N");
 
-            ICredential credential = credManager.Get(key);
+            WindowsCredential credential = credManager.Read(key);
             Assert.Null(credential);
         }
 
         [Fact]
-        public void WindowsCredentialManager_Remove_KeyNotFound_ReturnsFalse()
+        public void WindowsCredentialManager_Delete_KeyNotFound_ReturnsFalse()
         {
-            WindowsCredentialManager credManager = WindowsCredentialManager.OpenDefault();
+            WindowsCredentialManager credManager = WindowsCredentialManager.Open();
 
             // Unique key; guaranteed not to exist!
             string key = Guid.NewGuid().ToString("N");
 
-            bool result = credManager.Remove(key);
+            bool result = credManager.Delete(key);
             Assert.False(result);
         }
     }

@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-        <TargetFramework>netstandard1.3</TargetFramework>
+        <TargetFramework>netstandard2.0</TargetFramework>
         <LangVersion>latest</LangVersion>
         <PackageId>Mjcheetham.SecureStorage</PackageId>
         <Version>0.1.1-alpha</Version>
@@ -14,6 +14,7 @@
         <RepositoryUrl>https://github.com/mjcheetham/securestorage-dotnet</RepositoryUrl>
         <RepositoryType>Git</RepositoryType>
         <PackageTags>keychain;credential;vault</PackageTags>
+        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     </PropertyGroup>
 
 </Project>
