@@ -16,13 +16,13 @@ namespace Mjcheetham.SecureStorage.UnitTests
         {
             MacOSKeychain keychain = MacOSKeychain.Open();
 
-            var query = new SecItemInternetPasswordQuery
+            var query = new KeychainQuery(KeychainItemType.InternetPassword)
             {
                 Account = "mjcheetham",
                 //ReturnData = true
             };
 
-            SecItemInternetPassword item = keychain.FindItem(query);
+            KeychainRecord item = keychain.FindItem(query);
 
             string account = item.Account;
             string label = item.Label;

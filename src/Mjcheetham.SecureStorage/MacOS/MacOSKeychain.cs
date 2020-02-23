@@ -1,6 +1,4 @@
 using System;
-using System.Diagnostics;
-using System.Runtime.InteropServices;
 using System.Text;
 using Mjcheetham.SecureStorage.Interop;
 using Mjcheetham.SecureStorage.MacOS.Interop;
@@ -191,35 +189,11 @@ namespace Mjcheetham.SecureStorage.MacOS
             }
         }
 
-        public SecItemInternetPassword FindItem(SecItemInternetPasswordQuery query)
-        {
-            CFDictionary queryDict = query.ToCFDictionary();
-            CFDictionary itemDict = FindItem(queryDict);
-            if (itemDict == null)
-            {
-                return null;
-            }
-
-            return new SecItemInternetPassword(itemDict);
-        }
-
-        public SecItemGenericPassword FindItem(SecItemGenericPasswordQuery query)
-        {
-            CFDictionary queryDict = query.ToCFDictionary();
-            CFDictionary itemDict = FindItem(queryDict);
-            if (itemDict == null)
-            {
-                return null;
-            }
-
-            return new SecItemGenericPassword(itemDict);
-        }
-
-        public CFDictionary FindItem(CFDictionary query)
+        public KeychainRecord FindItem(KeychainQuery query)
         {
             query.Add(kSecMatchLimit, kSecMatchLimitOne);
 
-            int copyResult = SecItemCopyMatching(query.DangerousGetHandle(), out IntPtr resultPtr);
+            int copyResult = SecItemCopyMatching(query, out IntPtr resultPtr);
 
             switch (copyResult)
             {
@@ -235,82 +209,33 @@ namespace Mjcheetham.SecureStorage.MacOS
             }
         }
 
-        private object ReadSecItemAttributes(IntPtr itemRef)
+        public bool DeleteItem(CFDictionary query)
         {
-            byte[] serviceBytes = GetAttributeData(itemRef, SecKeychainAttrType.Service, CssmDbAttributeFormat.String);
-            byte[] accountBytes = GetAttributeData(itemRef, SecKeychainAttrType.Account, CssmDbAttributeFormat.String);
-            byte[] labelBytes   = GetAttributeData(itemRef, SecKeychainAttrType.Label, CssmDbAttributeFormat.String);
+            query.Add(kSecMatchLimit, kSecMatchLimitOne);
 
-            string service = Encoding.UTF8.GetString(serviceBytes);
-            string account = Encoding.UTF8.GetString(accountBytes);
-            string label   = Encoding.UTF8.GetString(labelBytes);
+            int deleteResult = SecItemDelete(query.DangerousGetHandle());
 
-            return null;
-        }
-
-        private static byte[] GetAttributeData(IntPtr itemRef, SecKeychainAttrType attrType, CssmDbAttributeFormat attrFormat)
-        {
-            IntPtr tagArrayPtr = IntPtr.Zero;
-            IntPtr formatArrayPtr = IntPtr.Zero;
-            IntPtr attrListPtr = IntPtr.Zero; // SecKeychainAttributeList
-
-            try
+            switch (deleteResult)
             {
-                tagArrayPtr = Marshal.AllocHGlobal(sizeof(SecKeychainAttrType));
-                formatArrayPtr = Marshal.AllocHGlobal(sizeof(CssmDbAttributeFormat));
+                case OK:
+                    return true;
 
-                Marshal.WriteInt32(tagArrayPtr,  (int) attrType);
-                Marshal.WriteInt32(formatArrayPtr, (int) attrFormat);
+                case ErrorSecItemNotFound:
+                    return false;
 
-                var attributeInfo = new SecKeychainAttributeInfo
-                {
-                    Count = 1,
-                    Tag = tagArrayPtr,
-                    Format = formatArrayPtr,
-                };
-
-                IntPtr itemClass = IntPtr.Zero;
-
-                ThrowIfError(
-                    SecKeychainItemCopyAttributesAndData(
-                        itemRef, ref attributeInfo,
-                        ref itemClass, out attrListPtr, out _, IntPtr.Zero)
-                );
-
-                SecKeychainAttributeList attrList = Marshal.PtrToStructure<SecKeychainAttributeList>(attrListPtr);
-                Debug.Assert(attrList.Count == 1);
-
-                SecKeychainAttribute[] values = attrList.Attributes.ToStructureArray<SecKeychainAttribute>(1);
-                SecKeychainAttribute value = values[0];
-
-                return value.Data.ToByteArray(value.Length);
-            }
-            finally
-            {
-                if (tagArrayPtr != IntPtr.Zero)
-                {
-                    Marshal.FreeHGlobal(tagArrayPtr);
-                }
-
-                if (formatArrayPtr != IntPtr.Zero)
-                {
-                    Marshal.FreeHGlobal(formatArrayPtr);
-                }
-
-                if (attrListPtr != IntPtr.Zero)
-                {
-                    SecKeychainItemFreeAttributesAndData(attrListPtr, IntPtr.Zero);
-                }
+                default:
+                    ThrowIfError(deleteResult);
+                    return false;
             }
         }
     }
 
-    public class SecItem : IDisposable
+    public class KeychainRecord
     {
         private readonly CFDictionary _dict;
         private bool _disposed;
 
-        public SecItem(CFDictionary dict)
+        public KeychainRecord(CFDictionary dict)
         {
             _dict = dict;
         }
@@ -353,6 +278,18 @@ namespace Mjcheetham.SecureStorage.MacOS
 
         public string Label => GetString(kSecAttrLabel);
 
+        public string Service => GetString(kSecAttrService);
+
+        //public SecAuthenticationType AuthenticationType { get; set; }
+
+        //public SecProtocolType Protocol { get; set; }
+
+        public string Server => GetString(kSecAttrServer);
+
+        public short Port => (short)GetNumber(kSecAttrPort);
+
+        public string Path => GetString(kSecAttrPath);
+
         public void Dispose()
         {
             if (_disposed) return;
@@ -361,35 +298,64 @@ namespace Mjcheetham.SecureStorage.MacOS
         }
     }
 
-    public class SecItemGenericPassword : SecItem
+    public class KeychainQuery : CFDictionary
     {
-        public SecItemGenericPassword(CFDictionary dict)
-            : base(dict) { }
-    }
+        public KeychainQuery(KeychainItemType type) : base(32)
+        {
+            Type = type;
+        }
 
-    public class SecItemInternetPassword : SecItem
-    {
-        public SecItemInternetPassword(CFDictionary dict)
-            : base(dict) { }
+        public KeychainItemType Type
+        {
+            get
+            {
+                if (this[kSecClass] == kSecClassGenericPassword)
+                {
+                    return KeychainItemType.GenericPassword;
+                }
 
-        //public SecAuthenticationType AuthenticationType { get; set; }
+                if (this[kSecClass] == kSecClassInternetPassword)
+                {
+                    return KeychainItemType.InternetPassword;
+                }
 
-        //public SecProtocolType Protocol { get; set; }
+                throw new InvalidOperationException();
+            }
+            set
+            {
+                switch (value)
+                {
+                    case KeychainItemType.GenericPassword:
+                        this[kSecClass] = kSecClassGenericPassword;
+                        break;
 
-        public string Server => GetString(kSecAttrServer);
-        public short Port => (short)GetNumber(kSecAttrPort);
-        public string Path => GetString(kSecAttrPath);
-    }
+                    case KeychainItemType.InternetPassword:
+                        this[kSecClass] = kSecClassInternetPassword;
+                        break;
 
-    public abstract class SecItemQuery
-    {
+                    default:
+                        throw new ArgumentOutOfRangeException(nameof(value));
+                }
+            }
+        }
+
         public bool ReturnData { get; set; }
 
         public string Account { get; set; }
 
         public string Label { get; set; }
 
-        protected abstract void AddQueryParameters(CFDictionary dict);
+        public string Service { get; set; }
+
+        public SecAuthenticationType AuthenticationType { get; set; }
+
+        public SecProtocolType Protocol { get; set; }
+
+        public string Server { get; set; }
+
+        public short Port { get; set; }
+
+        public string Path { get; set; }
 
         public CFDictionary ToCFDictionary()
         {
@@ -415,38 +381,10 @@ namespace Mjcheetham.SecureStorage.MacOS
                 dict[kSecAttrLabel] = new CFString(Label).DangerousGetHandle();
             }
 
-            AddQueryParameters(dict);
-
-            return dict;
-        }
-    }
-
-    public class SecItemGenericPasswordQuery : SecItemQuery
-    {
-        public string Service { get; set; }
-
-        protected override void AddQueryParameters(CFDictionary dict)
-        {
-            dict[kSecClass] = kSecClassGenericPassword;
-
             if (Service != null)
             {
                 dict[kSecAttrService] = new CFString(Service).DangerousGetHandle();
             }
-        }
-    }
-
-    public class SecItemInternetPasswordQuery : SecItemQuery
-    {
-        public SecAuthenticationType AuthenticationType { get; set; }
-        public SecProtocolType Protocol { get; set; }
-        public string Server { get; set; }
-        public short Port { get; set; }
-        public string Path { get; set; }
-
-        protected override void AddQueryParameters(CFDictionary dict)
-        {
-            dict[kSecClass] = kSecClassInternetPassword;
 
             if (AuthenticationType != SecAuthenticationType.Any)
             {
@@ -472,6 +410,14 @@ namespace Mjcheetham.SecureStorage.MacOS
             {
                 dict[kSecAttrPath] = new CFString(Path).DangerousGetHandle();
             }
+
+            return dict;
         }
+    }
+
+    public enum KeychainItemType
+    {
+        GenericPassword,
+        InternetPassword
     }
 }
