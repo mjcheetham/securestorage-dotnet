@@ -3,7 +3,7 @@ using System.Runtime.InteropServices.ComTypes;
 
 namespace Mjcheetham.SecureStorage.Windows
 {
-    public static class FileTimeExtensions
+    internal static class FileTimeExtensions
     {
         public static DateTime ToDateTime(this FILETIME filetime)
         {

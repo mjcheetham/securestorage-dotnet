@@ -7,7 +7,7 @@ namespace Mjcheetham.SecureStorage.Interop
     /// Marshaler for converting between .NET strings (UTF-16) and byte arrays (UTF-8).
     /// Uses <seealso cref="Utf8StringConverter"/> internally.
     /// </summary>
-    public class Utf8StringMarshaler : ICustomMarshaler
+    internal class Utf8StringMarshaler : ICustomMarshaler
     {
         // We need to clean up strings that we marshal to native, but should not clean up strings that
         // we marshal to managed.

@@ -9,7 +9,7 @@ namespace Mjcheetham.SecureStorage.UnitTests
         [Fact]
         public void WindowsCredentialManager_ReadWriteDelete()
         {
-            WindowsCredentialManager credManager = WindowsCredentialManager.Open();
+            var credManager = new WindowsCredentialManager();
 
             const string targetName = "secretkey";
             const string userName = "john.doe";
@@ -33,7 +33,7 @@ namespace Mjcheetham.SecureStorage.UnitTests
         [Fact]
         public void WindowsCredentialManager_Read_KeyNotFound_ReturnsNull()
         {
-            WindowsCredentialManager credManager = WindowsCredentialManager.Open();
+            var credManager = new WindowsCredentialManager();
 
             // Unique key; guaranteed not to exist!
             string key = Guid.NewGuid().ToString("N");
@@ -45,7 +45,7 @@ namespace Mjcheetham.SecureStorage.UnitTests
         [Fact]
         public void WindowsCredentialManager_Delete_KeyNotFound_ReturnsFalse()
         {
-            WindowsCredentialManager credManager = WindowsCredentialManager.Open();
+            var credManager = new WindowsCredentialManager();
 
             // Unique key; guaranteed not to exist!
             string key = Guid.NewGuid().ToString("N");

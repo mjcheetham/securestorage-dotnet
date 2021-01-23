@@ -5,7 +5,7 @@ using FILETIME = System.Runtime.InteropServices.ComTypes.FILETIME;
 namespace Mjcheetham.SecureStorage.Windows.Interop
 {
     // https://docs.microsoft.com/en-us/windows/desktop/api/wincred/
-    public static class Advapi32
+    internal static class Advapi32
     {
         private const string LibraryName = "advapi32.dll";
 

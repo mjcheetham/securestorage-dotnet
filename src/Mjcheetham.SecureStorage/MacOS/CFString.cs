@@ -5,18 +5,11 @@ using static Mjcheetham.SecureStorage.MacOS.Interop.CoreFoundation;
 
 namespace Mjcheetham.SecureStorage.MacOS
 {
-    public class CFString : CFType
+    internal class CFString : CFType
     {
         public CFString(string str) : base(true)
         {
-            byte[] bytes = Encoding.UTF8.GetBytes(str);
-
-            SetHandle(
-                CFStringCreateWithBytes(kCFAllocatorDefault,
-                    bytes, bytes.Length,
-                    CFStringEncoding.kCFStringEncodingUTF8,
-                    false)
-            );
+            SetHandle(CreateHandle(str));
         }
 
         public CFString(IntPtr handle, bool ownsHandle) : base(ownsHandle)
@@ -28,15 +21,31 @@ namespace Mjcheetham.SecureStorage.MacOS
 
         public override string ToString()
         {
-            if (IsInvalid)
+            return ToString(handle);
+        }
+
+        public static IntPtr CreateHandle(string str)
+        {
+            byte[] bytes = Encoding.UTF8.GetBytes(str);
+
+            return CFStringCreateWithBytes(kCFAllocatorDefault,
+                bytes, bytes.Length,
+                CFStringEncoding.kCFStringEncodingUTF8,
+                false);
+        }
+
+        public static string ToString(IntPtr ptr)
+        {
+            if (ptr == IntPtr.Zero)
             {
                 return null;
             }
 
-            int maxSize = CFStringGetMaximumSizeForEncoding(Length, CFStringEncoding.kCFStringEncodingUTF8) + 1;
+            int length = CFStringGetLength(ptr);
+            int maxSize = CFStringGetMaximumSizeForEncoding(length, CFStringEncoding.kCFStringEncodingUTF8) + 1;
 
             byte[] buffer = new byte[maxSize];
-            if (CFStringGetCString(handle, buffer, maxSize, CFStringEncoding.kCFStringEncodingUTF8))
+            if (CFStringGetCString(ptr, buffer, maxSize, CFStringEncoding.kCFStringEncodingUTF8))
             {
                 int end = Array.IndexOf(buffer, (byte) 0);
                 return Encoding.UTF8.GetString(buffer, 0, end);

@@ -4,16 +4,12 @@ using static Mjcheetham.SecureStorage.MacOS.Interop.CoreFoundation;
 
 namespace Mjcheetham.SecureStorage.MacOS
 {
-    public class CFData : CFType
+    internal class CFData : CFType
     {
         public CFData() : this(new byte[0]) { }
 
-        public CFData(byte[] data) : base(true)
-        {
-            SetHandle(
-                CFDataCreate(kCFAllocatorDefault, data, data.Length)
-            );
-        }
+        public CFData(byte[] data)
+            : this(CreateHandle(data), true) { }
 
         public CFData(IntPtr handle, bool ownsHandle) : base(ownsHandle)
         {
@@ -24,15 +20,23 @@ namespace Mjcheetham.SecureStorage.MacOS
 
         public IntPtr GetBuffer() => CFDataGetBytePtr(handle);
 
-        public byte[] ToArray()
+        public byte[] ToArray() => ToArray(handle);
+
+        public static IntPtr CreateHandle(byte[] data)
         {
-            if (IsInvalid)
+            return CFDataCreate(kCFAllocatorDefault, data, data.Length);
+        }
+
+        public static byte[] ToArray(IntPtr handle)
+        {
+            if (handle == IntPtr.Zero)
             {
                 return null;
             }
 
-            var buffer = new byte[Length];
-            IntPtr ptr = GetBuffer();
+            int length = CFDataGetLength(handle);
+            var buffer = new byte[length];
+            IntPtr ptr = CFDataGetBytePtr(handle);
             Marshal.Copy(ptr, buffer, 0, buffer.Length);
             return buffer;
         }

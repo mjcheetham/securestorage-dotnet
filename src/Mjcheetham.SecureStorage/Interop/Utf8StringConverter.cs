@@ -7,7 +7,7 @@ namespace Mjcheetham.SecureStorage.Interop
     /// <summary>
     /// Conversion utilities to convert between .NET strings (UTF-16) and byte arrays (UTF-8).
     /// </summary>
-    public static class Utf8StringConverter
+    internal static class Utf8StringConverter
     {
         private const byte NULL = (byte) '\0';
 

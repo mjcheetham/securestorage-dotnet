@@ -4,7 +4,7 @@ using Mjcheetham.SecureStorage.Interop;
 
 namespace Mjcheetham.SecureStorage.MacOS.Interop
 {
-    public static class LibSystem
+    internal static class LibSystem
     {
         private const string Library = "/usr/lib/libSystem.dylib";
 

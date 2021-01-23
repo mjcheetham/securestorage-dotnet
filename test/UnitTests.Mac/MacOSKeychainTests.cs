@@ -1,9 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Runtime.InteropServices;
 using System.Text;
-using Mjcheetham.SecureStorage.Interop;
 using Mjcheetham.SecureStorage.MacOS;
 using Xunit;
 
@@ -14,19 +12,20 @@ namespace Mjcheetham.SecureStorage.UnitTests
         [Fact]
         public void MacOSKeychain_Test()
         {
-            MacOSKeychain keychain = MacOSKeychain.Open();
+            var keychain = new MacOSKeychain();
 
-            var query = new KeychainQuery(KeychainItemType.InternetPassword)
+            using var query = new KeychainQuery(KeychainItemType.InternetPassword)
             {
                 Account = "mjcheetham",
-                //ReturnData = true
+                ReturnData = true
             };
 
-            KeychainRecord item = keychain.FindItem(query);
+            using KeychainItem item = keychain.FindItem(query);
 
             string account = item.Account;
             string label = item.Label;
             string server = item.Server;
+            string service = item.Service;
             string path = item.Path;
             short port = item.Port;
             byte[] data = item.Data;
@@ -77,7 +76,7 @@ namespace Mjcheetham.SecureStorage.UnitTests
             var map = new Dictionary<string, (uint, string)>();
             foreach (var kvp in fourCharCodes)
             {
-                byte[] bytes = kvp.Value.ToByteArray(Encoding.UTF8).Reverse().ToArray();
+                byte[] bytes = Encoding.UTF8.GetBytes(kvp.Value).Reverse().ToArray();
 
                 try
                 {

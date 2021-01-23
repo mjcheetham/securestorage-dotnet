@@ -5,7 +5,7 @@ using Microsoft.Win32.SafeHandles;
 
 namespace Mjcheetham.SecureStorage.Windows.Interop
 {
-    public static class Kernel32
+    internal static class Kernel32
     {
         private const string LibraryName = "kernel32.dll";
 

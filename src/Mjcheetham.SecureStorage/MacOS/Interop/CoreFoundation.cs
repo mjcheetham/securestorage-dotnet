@@ -1,12 +1,9 @@
 using System;
 using System.Runtime.InteropServices;
-using System.Text;
-using Mjcheetham.SecureStorage.Interop;
-using static Mjcheetham.SecureStorage.MacOS.Interop.CoreFoundation;
 
 namespace Mjcheetham.SecureStorage.MacOS.Interop
 {
-    public static class CoreFoundation
+    internal static class CoreFoundation
     {
         private const string CoreFoundationFrameworkLib = "/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation";
 

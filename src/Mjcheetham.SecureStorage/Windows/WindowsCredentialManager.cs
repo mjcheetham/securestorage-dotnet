@@ -15,12 +15,7 @@ namespace Mjcheetham.SecureStorage.Windows
         /// Open the Windows Credential Manager vault for the current user.
         /// </summary>
         /// <returns>Current user's Credential Manager vault.</returns>
-        public static WindowsCredentialManager Open()
-        {
-            return new WindowsCredentialManager();
-        }
-
-        private WindowsCredentialManager()
+        public  WindowsCredentialManager()
         {
             PlatformUtils.EnsureWindows();
         }

@@ -17,9 +17,8 @@ namespace Mjcheetham.SecureStorage.MacOS
         /// Open the default keychain (current user's login keychain).
         /// </summary>
         /// <returns>Default keychain.</returns>
-        public static MacOSKeychain Open()
+        public MacOSKeychain() : this(IntPtr.Zero)
         {
-            return new MacOSKeychain(IntPtr.Zero);
         }
 
         private MacOSKeychain(IntPtr keychainPtr)
@@ -189,16 +188,17 @@ namespace Mjcheetham.SecureStorage.MacOS
             }
         }
 
-        public KeychainRecord FindItem(KeychainQuery query)
+        public KeychainItem FindItem(KeychainQuery query)
         {
-            query.Add(kSecMatchLimit, kSecMatchLimitOne);
+            query.Dictionary.Add(kSecMatchLimit, kSecMatchLimitOne);
 
-            int copyResult = SecItemCopyMatching(query, out IntPtr resultPtr);
+            int copyResult = SecItemCopyMatching(query.Dictionary.DangerousGetHandle(), out IntPtr resultPtr);
 
             switch (copyResult)
             {
                 case OK:
-                    return new CFDictionary(resultPtr, true);
+                    var dict = new CFDictionary(resultPtr, false);
+                    return new KeychainItem(dict);
 
                 case ErrorSecItemNotFound:
                     return null;
@@ -209,11 +209,11 @@ namespace Mjcheetham.SecureStorage.MacOS
             }
         }
 
-        public bool DeleteItem(CFDictionary query)
+        public bool DeleteItem(KeychainQuery query)
         {
-            query.Add(kSecMatchLimit, kSecMatchLimitOne);
+            query.Dictionary.Add(kSecMatchLimit, kSecMatchLimitOne);
 
-            int deleteResult = SecItemDelete(query.DangerousGetHandle());
+            int deleteResult = SecItemDelete(query.Dictionary.DangerousGetHandle());
 
             switch (deleteResult)
             {
@@ -230,91 +230,89 @@ namespace Mjcheetham.SecureStorage.MacOS
         }
     }
 
-    public class KeychainRecord
+    public class KeychainItem : IDisposable
     {
         private readonly CFDictionary _dict;
-        private bool _disposed;
 
-        public KeychainRecord(CFDictionary dict)
+        internal KeychainItem(CFDictionary dict)
         {
             _dict = dict;
         }
 
-        public CFDictionary GetAttributes() => _dict;
+        internal CFDictionary Dictionary => _dict;
 
-        protected byte[] GetData(IntPtr key)
+        public byte[] Data => _dict.TryGetValue(kSecValueData, out IntPtr value) ? CFData.ToArray(value) : null;
+
+        public string Account => _dict.GetString(kSecAttrAccount);
+
+        public string Label => _dict.GetString(kSecAttrLabel);
+
+        public string Service => _dict.GetString(kSecAttrService);
+
+        public SecAuthenticationType AuthenticationType
         {
-            if (_dict.TryGetValue(key, out IntPtr value))
+            get
             {
-                return new CFData(value, false).ToArray();
-            }
+                if (_dict.TryGetValue(kSecAttrAuthenticationType, out IntPtr valuePtr))
+                {
+                    return (SecAuthenticationType) CFNumber.ToInt32(valuePtr);
+                }
 
-            return new byte[0];
+                return SecAuthenticationType.Any;
+            }
         }
 
-        protected string GetString(IntPtr key, string defaultValue = null)
+        public SecProtocolType Protocol
         {
-            if (_dict.TryGetValue(key, out IntPtr value))
+            get
             {
-                return new CFString(value, false).ToString();
+                if (_dict.TryGetValue(kSecAttrProtocol, out IntPtr valuePtr))
+                {
+                    return (SecProtocolType) CFNumber.ToInt32(valuePtr);
+                }
+
+                return SecProtocolType.Any;
             }
-
-            return defaultValue;
         }
 
-        protected long GetNumber(IntPtr key, long defaultValue = 0)
-        {
-            if (_dict.TryGetValue(key, out IntPtr value))
-            {
-                return new CFNumber(value, false).GetInt64();
-            }
+        public string Server => _dict.GetString(kSecAttrServer);
 
-            return defaultValue;
-        }
+        public short Port => _dict.TryGetValue(kSecAttrPort, out IntPtr valuePtr)
+            ? CFNumber.ToInt16(valuePtr)
+            : (short) 0;
 
-        public byte[] Data => GetData(kSecValueData);
+        public string Path => _dict.GetString(kSecAttrPath);
 
-        public string Account => GetString(kSecAttrAccount);
-
-        public string Label => GetString(kSecAttrLabel);
-
-        public string Service => GetString(kSecAttrService);
-
-        //public SecAuthenticationType AuthenticationType { get; set; }
-
-        //public SecProtocolType Protocol { get; set; }
-
-        public string Server => GetString(kSecAttrServer);
-
-        public short Port => (short)GetNumber(kSecAttrPort);
-
-        public string Path => GetString(kSecAttrPath);
-
-        public void Dispose()
-        {
-            if (_disposed) return;
-            _dict.Dispose();
-            _disposed = true;
-        }
+        public void Dispose() => _dict.Dispose();
     }
 
-    public class KeychainQuery : CFDictionary
+    public class KeychainQuery : IDisposable
     {
-        public KeychainQuery(KeychainItemType type) : base(32)
+        private readonly CFDictionary _dict;
+
+        public KeychainQuery(KeychainItemType type)
         {
+            _dict = new CFDictionary(32);
+
+            // Always return attributes
+            _dict.SetValue(kSecReturnAttributes, kCFBooleanTrue);
+
             Type = type;
         }
+
+        internal CFDictionary Dictionary => _dict;
 
         public KeychainItemType Type
         {
             get
             {
-                if (this[kSecClass] == kSecClassGenericPassword)
+                IntPtr value = _dict[kSecClass];
+                if (value == kSecClassGenericPassword)
                 {
                     return KeychainItemType.GenericPassword;
                 }
 
-                if (this[kSecClass] == kSecClassInternetPassword)
+                if (value == kSecClassInternetPassword)
                 {
                     return KeychainItemType.InternetPassword;
                 }
@@ -326,11 +324,11 @@ namespace Mjcheetham.SecureStorage.MacOS
                 switch (value)
                 {
                     case KeychainItemType.GenericPassword:
-                        this[kSecClass] = kSecClassGenericPassword;
+                        _dict[kSecClass] = kSecClassGenericPassword;
                         break;
 
                     case KeychainItemType.InternetPassword:
-                        this[kSecClass] = kSecClassInternetPassword;
+                        _dict[kSecClass] = kSecClassInternetPassword;
                         break;
 
                     default:
@@ -339,80 +337,107 @@ namespace Mjcheetham.SecureStorage.MacOS
             }
         }
 
-        public bool ReturnData { get; set; }
-
-        public string Account { get; set; }
-
-        public string Label { get; set; }
-
-        public string Service { get; set; }
-
-        public SecAuthenticationType AuthenticationType { get; set; }
-
-        public SecProtocolType Protocol { get; set; }
-
-        public string Server { get; set; }
-
-        public short Port { get; set; }
-
-        public string Path { get; set; }
-
-        public CFDictionary ToCFDictionary()
+        public bool ReturnData
         {
-            var dict = new CFDictionary(32);
-
-            var x = CoreFoundation.LibraryHandle;
-            var y = SecurityFramework.LibraryHandle;
-
-            dict[kSecReturnAttributes] = kCFBooleanTrue;
-
-            if (ReturnData)
-            {
-                dict[kSecReturnData] = kCFBooleanTrue;
-            }
-
-            if (Account != null)
-            {
-                dict[kSecAttrAccount] = new CFString(Account).DangerousGetHandle();
-            }
-
-            if (Label != null)
-            {
-                dict[kSecAttrLabel] = new CFString(Label).DangerousGetHandle();
-            }
-
-            if (Service != null)
-            {
-                dict[kSecAttrService] = new CFString(Service).DangerousGetHandle();
-            }
-
-            if (AuthenticationType != SecAuthenticationType.Any)
-            {
-                dict[kSecAttrAuthenticationType] = new CFNumber((uint) AuthenticationType).DangerousGetHandle();
-            }
-
-            if (Protocol != SecProtocolType.Any)
-            {
-                dict[kSecAttrProtocol] = new CFNumber((uint) Protocol).DangerousGetHandle();
-            }
-
-            if (Server != null)
-            {
-                dict[kSecAttrServer] = new CFString(Server).DangerousGetHandle();
-            }
-
-            if (Port > 0)
-            {
-                dict[kSecAttrPort] = new CFNumber(Port).DangerousGetHandle();
-            }
-
-            if (Path != null)
-            {
-                dict[kSecAttrPath] = new CFString(Path).DangerousGetHandle();
-            }
-
-            return dict;
+            get => _dict[kSecReturnData] == kCFBooleanTrue;
+            set => _dict[kSecReturnData] = value ? kCFBooleanTrue : kCFBooleanFalse;
         }
+
+        public string Account
+        {
+            get => _dict.GetString(kSecAttrAccount);
+            set => _dict.SetString(kSecAttrAccount, value);
+        }
+
+        public string Label
+        {
+            get => _dict.GetString(kSecAttrLabel);
+            set => _dict.SetString(kSecAttrLabel, value);
+        }
+
+        public string Service
+        {
+            get => _dict.GetString(kSecAttrService);
+            set => _dict.SetString(kSecAttrService, value);
+        }
+
+        public SecAuthenticationType AuthenticationType
+        {
+            get
+            {
+                if (_dict.TryGetValue(kSecAttrAuthenticationType, out IntPtr valuePtr))
+                {
+                    return (SecAuthenticationType) CFNumber.ToInt32(valuePtr);
+                }
+
+                return SecAuthenticationType.Any;
+            }
+            set
+            {
+                if (value == SecAuthenticationType.Any)
+                {
+                    _dict.Remove(kSecAttrAuthenticationType);
+                }
+                else
+                {
+                    _dict[kSecAttrAuthenticationType] = CFNumber.CreateHandle((uint) value);
+                }
+            }
+        }
+
+        public SecProtocolType Protocol
+        {
+            get
+            {
+                if (_dict.TryGetValue(kSecAttrProtocol, out IntPtr valuePtr))
+                {
+                    return (SecProtocolType) CFNumber.ToInt32(valuePtr);
+                }
+
+                return SecProtocolType.Any;
+            }
+            set
+            {
+                if (value == SecProtocolType.Any)
+                {
+                    _dict.Remove(kSecAttrProtocol);
+                }
+                else
+                {
+                    _dict[kSecAttrProtocol] = CFNumber.CreateHandle((uint) value);
+                }
+            }
+        }
+
+        public string Server
+        {
+            get => _dict.GetString(kSecAttrServer);
+            set => _dict.SetString(kSecAttrServer, value);
+        }
+
+        public short Port
+        {
+            get => _dict.TryGetValue(kSecAttrPort, out IntPtr valuePtr) ? CFNumber.ToInt16(valuePtr) : (short) 0;
+            set
+            {
+                if (value > 0)
+                {
+                    _dict.SetValue(kSecAttrPort, CFNumber.CreateHandle(value));
+                }
+                else
+                {
+                    _dict.Remove(kSecAttrPort);
+                }
+            }
+        }
+
+        public string Path
+        {
+            get => _dict.GetString(kSecAttrPath);
+            set => _dict.SetString(kSecAttrPath, value);
+        }
+
+        public void Dispose() => _dict.Dispose();
     }
 
     public enum KeychainItemType

@@ -1,12 +1,11 @@
 using System;
 using System.Runtime.InteropServices;
-using System.Text;
 using Mjcheetham.SecureStorage.Interop;
 
 namespace Mjcheetham.SecureStorage.MacOS.Interop
 {
     // https://developer.apple.com/documentation/security/keychain_services/keychain_items
-    public static class SecurityFramework
+    internal static class SecurityFramework
     {
         private const string SecurityFrameworkLib = "/System/Library/Frameworks/Security.framework/Security";
 

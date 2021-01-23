@@ -2,7 +2,7 @@ using System.Text;
 
 namespace Mjcheetham.SecureStorage.Interop
 {
-    public static class StringExtensions
+    internal static class StringExtensions
     {
         public static byte[] ToByteArray(this string str, Encoding encoding)
         {

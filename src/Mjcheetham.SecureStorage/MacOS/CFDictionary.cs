@@ -6,7 +6,7 @@ using static Mjcheetham.SecureStorage.MacOS.Interop.CoreFoundation;
 
 namespace Mjcheetham.SecureStorage.MacOS
 {
-    public class CFDictionary : CFType, IDictionary<IntPtr, IntPtr>
+    internal class CFDictionary : CFType, IDictionary<IntPtr, IntPtr>
     {
         public CFDictionary(int capacity) : base(true)
         {
@@ -125,6 +125,23 @@ namespace Mjcheetham.SecureStorage.MacOS
         {
             CFRelease(handle);
             return true;
+        }
+
+        public string GetString(IntPtr key)
+        {
+            return TryGetValue(key, out IntPtr ptr) ? CFString.ToString(ptr) : null;
+        }
+
+        public void SetString(IntPtr key, string value)
+        {
+            if (value is null)
+            {
+                Remove(key);
+            }
+            else
+            {
+                SetValue(key, CFString.CreateHandle(value));
+            }
         }
     }
 }
