@@ -6,7 +6,8 @@ namespace Mjcheetham.SecureStorage.MacOS
 {
     internal class CFData : CFType
     {
-        public CFData() : this(new byte[0]) { }
+        public CFData(int capacity)
+            : this(CFDataCreateMutable(kCFAllocatorDefault, capacity), true) { }
 
         public CFData(byte[] data)
             : this(CreateHandle(data), true) { }
@@ -24,7 +25,9 @@ namespace Mjcheetham.SecureStorage.MacOS
 
         public static IntPtr CreateHandle(byte[] data)
         {
-            return CFDataCreate(kCFAllocatorDefault, data, data.Length);
+            var cfDataPtr = CFDataCreateMutable(kCFAllocatorDefault, data.Length);
+            CFDataAppendBytes(cfDataPtr, data, data.Length);
+            return cfDataPtr;
         }
 
         public static byte[] ToArray(IntPtr handle)

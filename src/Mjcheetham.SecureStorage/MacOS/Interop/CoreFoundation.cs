@@ -17,6 +17,8 @@ namespace Mjcheetham.SecureStorage.MacOS.Interop
         public static readonly IntPtr kCFTypeDictionaryKeyCallBacks;
         public static readonly IntPtr kCFTypeDictionaryValueCallBacks;
 
+        public static readonly IntPtr kCFTypeArrayCallBacks;
+
         static CoreFoundation()
         {
             LibraryHandle = LibSystem.dlopen(CoreFoundationFrameworkLib, 0);
@@ -28,7 +30,30 @@ namespace Mjcheetham.SecureStorage.MacOS.Interop
 
             kCFTypeDictionaryKeyCallBacks   = LibSystem.dlsym(LibraryHandle, "kCFTypeDictionaryKeyCallBacks");
             kCFTypeDictionaryValueCallBacks = LibSystem.dlsym(LibraryHandle, "kCFTypeDictionaryValueCallBacks");
+
+            kCFTypeArrayCallBacks = LibSystem.dlsym(LibraryHandle, "kCFTypeArrayCallBacks");
         }
+
+        [DllImport(CoreFoundationFrameworkLib, CharSet = CharSet.Ansi, CallingConvention = CallingConvention.Cdecl)]
+        public static extern uint CFGetTypeID(IntPtr cf);
+
+        [DllImport(CoreFoundationFrameworkLib, CharSet = CharSet.Ansi, CallingConvention = CallingConvention.Cdecl)]
+        public static extern IntPtr CFCopyTypeIDDescription(uint typeId);
+
+        [DllImport(CoreFoundationFrameworkLib, CharSet = CharSet.Ansi, CallingConvention = CallingConvention.Cdecl)]
+        public static extern uint CFDictionaryGetTypeID();
+
+        [DllImport(CoreFoundationFrameworkLib, CharSet = CharSet.Ansi, CallingConvention = CallingConvention.Cdecl)]
+        public static extern uint CFDataGetTypeID();
+
+        [DllImport(CoreFoundationFrameworkLib, CharSet = CharSet.Ansi, CallingConvention = CallingConvention.Cdecl)]
+        public static extern uint CFArrayGetTypeID();
+
+        [DllImport(CoreFoundationFrameworkLib, CharSet = CharSet.Ansi, CallingConvention = CallingConvention.Cdecl)]
+        public static extern uint CFStringGetTypeID();
+
+        [DllImport(CoreFoundationFrameworkLib, CharSet = CharSet.Ansi, CallingConvention = CallingConvention.Cdecl)]
+        public static extern uint CFNumberGetTypeID();
 
         [DllImport(CoreFoundationFrameworkLib, CharSet = CharSet.Ansi, CallingConvention = CallingConvention.Cdecl)]
         public static extern IntPtr CFDictionaryCreateMutable(IntPtr allocator, int capacity, IntPtr keyCallbacks, IntPtr valueCallbacks);
@@ -86,10 +111,31 @@ namespace Mjcheetham.SecureStorage.MacOS.Interop
         public static extern IntPtr CFDataCreate(IntPtr allocator, byte[] bytes, int length);
 
         [DllImport(CoreFoundationFrameworkLib, CharSet = CharSet.Ansi, CallingConvention = CallingConvention.Cdecl)]
+        public static extern IntPtr CFDataCreateMutable(IntPtr allocator, int capacity);
+
+        [DllImport(CoreFoundationFrameworkLib, CharSet = CharSet.Ansi, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void CFDataAppendBytes(IntPtr theData, byte[] bytes, int length);
+
+        [DllImport(CoreFoundationFrameworkLib, CharSet = CharSet.Ansi, CallingConvention = CallingConvention.Cdecl)]
         public static extern IntPtr CFDataGetBytePtr(IntPtr cfData);
 
         [DllImport(CoreFoundationFrameworkLib, CharSet = CharSet.Ansi, CallingConvention = CallingConvention.Cdecl)]
         public static extern int CFDataGetLength(IntPtr cfData);
+
+        [DllImport(CoreFoundationFrameworkLib, CharSet = CharSet.Ansi, CallingConvention = CallingConvention.Cdecl)]
+        public static extern IntPtr CFArrayCreateMutable(IntPtr allocator, int capacity, IntPtr callbacks);
+
+        [DllImport(CoreFoundationFrameworkLib, CharSet = CharSet.Ansi, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void CFArrayAppendValue(IntPtr theArray, IntPtr value);
+
+        [DllImport(CoreFoundationFrameworkLib, CharSet = CharSet.Ansi, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int CFArrayGetCount(IntPtr theArray);
+
+        [DllImport(CoreFoundationFrameworkLib, CharSet = CharSet.Ansi, CallingConvention = CallingConvention.Cdecl)]
+        public static extern IntPtr CFArrayGetValueAtIndex(IntPtr theArray, int idx);
+
+        [DllImport(CoreFoundationFrameworkLib, CharSet = CharSet.Ansi, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void CFArrayGetValues(IntPtr theArray, IntPtr range, IntPtr values);
     }
 
     public enum CFNumberType

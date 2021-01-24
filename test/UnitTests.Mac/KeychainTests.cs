@@ -3,24 +3,35 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using Mjcheetham.SecureStorage.MacOS;
+using Mjcheetham.SecureStorage.MacOS.Interop;
 using Xunit;
 
 namespace Mjcheetham.SecureStorage.UnitTests
 {
-    public class MacOSKeychainTests
+    public class KeychainTests
     {
         [Fact]
-        public void MacOSKeychain_Test()
+        public void Keychain_Test()
         {
-            var keychain = new MacOSKeychain();
+            var keychain = new Keychain();
 
-            using var query = new KeychainQuery(KeychainItemType.InternetPassword)
+            using var query = new KeychainItem(KeychainItemType.InternetPassword)
             {
-                Account = "mjcheetham",
-                ReturnData = true
+                Account = "mjcheetham"
             };
 
-            using KeychainItem item = keychain.FindItem(query);
+            using IKeychainItem item = keychain.FindItem(query, false);
+
+            using var newItem = new KeychainItem(KeychainItemType.GenericPassword)
+            {
+                Account = "alice",
+                Service = "git:example.com",
+                Label = "test-test-test"
+            };
+
+            SecProtocolType proto = item.Protocol;
+
+            keychain.AddItem(newItem);
 
             string account = item.Account;
             string label = item.Label;
@@ -33,7 +44,7 @@ namespace Mjcheetham.SecureStorage.UnitTests
         }
 
         [Fact]
-        public void MacOSKeychain_FourCharacterCodeConvert()
+        public void Keychain_FourCharacterCodeConvert()
         {
             var fourCharCodes = new Dictionary<string, string>
             {

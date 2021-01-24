@@ -158,6 +158,9 @@ namespace Mjcheetham.SecureStorage.MacOS.Interop
         public static extern int SecItemDelete(IntPtr query);
 
         [DllImport(SecurityFrameworkLib, CharSet = CharSet.Ansi, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int SecItemAdd(IntPtr attributes, out IntPtr result);
+
+        [DllImport(SecurityFrameworkLib, CharSet = CharSet.Ansi, CallingConvention = CallingConvention.Cdecl)]
         public static extern int SecKeychainItemDelete(
             IntPtr itemRef);
 
