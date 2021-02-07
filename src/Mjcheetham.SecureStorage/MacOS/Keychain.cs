@@ -1,11 +1,11 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Text;
 using Mjcheetham.SecureStorage.Interop;
-using Mjcheetham.SecureStorage.MacOS.Interop;
-using static Mjcheetham.SecureStorage.MacOS.Interop.CoreFoundation;
-using static Mjcheetham.SecureStorage.MacOS.Interop.SecurityFramework;
+using System.Native.Apple.CoreFoundation;
+using System.Native.Apple.Security;
+using static System.Native.Apple.CoreFoundation.CoreFoundation;
+using static System.Native.Apple.Security.Security;
 
 namespace Mjcheetham.SecureStorage.MacOS
 {
@@ -39,6 +39,33 @@ namespace Mjcheetham.SecureStorage.MacOS
         string Server { get; set; }
         string Path { get; set; }
         short Port { get; set; }
+        bool UseDataProtectionKeychain { get; set; }
+    }
+
+    public class KeychainItem : IKeychainItem
+    {
+        private KeychainItem() { }
+
+        public static IKeychainItem Create(KeychainItemType type)
+        {
+            return new KeychainItem {Type = type};
+        }
+
+        public KeychainItemType Type { get; set; }
+        public SecAuthenticationType AuthenticationType { get; set; }
+        public SecProtocolType Protocol { get; set; }
+        public byte[] Data { get; set; }
+        public string Account { get; set; }
+        public string Label { get; set; }
+        public string Service { get; set; }
+        public string Server { get; set; }
+        public string Path { get; set; }
+        public short Port { get; set; }
+
+        // TODO: move to IKeychainQuery interface
+        public bool UseDataProtectionKeychain { get; set; }
+
+        public void Dispose() { }
     }
 
     public class Keychain : IKeychain
@@ -64,7 +91,7 @@ namespace Mjcheetham.SecureStorage.MacOS
 
         #endregion
 
-        public string FindGenericPassword(string service, string account)
+        public unsafe string FindGenericPassword(string service, string account)
         {
             IntPtr passwordData = IntPtr.Zero;
             IntPtr itemRef = IntPtr.Zero;
@@ -83,10 +110,10 @@ namespace Mjcheetham.SecureStorage.MacOS
 
                 switch (findResult)
                 {
-                    case OK:
+                    case errSecSuccess:
                         return passwordData.ToString(passwordLength, Encoding.UTF8);
 
-                    case ErrorSecItemNotFound:
+                    case errSecItemNotFound:
                         return null;
 
                     default:
@@ -98,7 +125,7 @@ namespace Mjcheetham.SecureStorage.MacOS
             {
                 if (passwordData != IntPtr.Zero)
                 {
-                    SecKeychainItemFreeContent(IntPtr.Zero, passwordData);
+                    SecKeychainItemFreeContent(null, passwordData);
                 }
 
                 if (itemRef != IntPtr.Zero)
@@ -108,7 +135,7 @@ namespace Mjcheetham.SecureStorage.MacOS
             }
         }
 
-        public string FindInternetPassword(string server, string account, string path, ushort port, SecProtocolType protocol)
+        public unsafe string FindInternetPassword(string server, string account, string path, ushort port, SecProtocolType protocol)
         {
             IntPtr passwordData = IntPtr.Zero;
             IntPtr itemRef = IntPtr.Zero;
@@ -132,10 +159,10 @@ namespace Mjcheetham.SecureStorage.MacOS
 
                 switch (findResult)
                 {
-                    case OK:
+                    case errSecSuccess:
                         return passwordData.ToString(passwordLength, Encoding.UTF8);
 
-                    case ErrorSecItemNotFound:
+                    case errSecItemNotFound:
                         return null;
 
                     default:
@@ -147,7 +174,7 @@ namespace Mjcheetham.SecureStorage.MacOS
             {
                 if (passwordData != IntPtr.Zero)
                 {
-                    SecKeychainItemFreeContent(IntPtr.Zero, passwordData);
+                    SecKeychainItemFreeContent(null, passwordData);
                 }
 
                 if (itemRef != IntPtr.Zero)
@@ -224,24 +251,20 @@ namespace Mjcheetham.SecureStorage.MacOS
 
         public IKeychainItem FindItem(IKeychainItem query, bool returnData)
         {
-            if (!(query is KeychainItem kcQuery))
-            {
-                throw new ArgumentException($"Must be of type {nameof(KeychainItem)}", nameof(query));
-            }
+            IntPtr queryDict = CreateQueryDictionary(query);
 
-            kcQuery.Dictionary.Add(kSecMatchLimit, kSecMatchLimitOne);
-            kcQuery.Dictionary.Add(kSecReturnAttributes, kCFBooleanTrue);
-            kcQuery.Dictionary.Add(kSecReturnData, returnData ? kCFBooleanTrue : kCFBooleanFalse);
+            CFDictionarySetValue(queryDict, kSecMatchLimit, kSecMatchLimitOne);
+            CFDictionarySetValue(queryDict, kSecReturnAttributes, kCFBooleanTrue);
+            CFDictionarySetValue(queryDict, kSecReturnData, returnData ? kCFBooleanTrue : kCFBooleanFalse);
 
-            int copyResult = SecItemCopyMatching(kcQuery.Dictionary.DangerousGetHandle(), out IntPtr resultPtr);
+            int copyResult = SecItemCopyMatching(queryDict, out IntPtr resultPtr);
 
             switch (copyResult)
             {
-                case OK:
-                    var dict = new CFDictionary(resultPtr, false);
-                    return new KeychainItem(dict);
+                case errSecSuccess:
+                    return new KeychainCFDictionaryItem(resultPtr);
 
-                case ErrorSecItemNotFound:
+                case errSecItemNotFound:
                     return null;
 
                 default:
@@ -250,30 +273,68 @@ namespace Mjcheetham.SecureStorage.MacOS
             }
         }
 
-        public IEnumerable<IKeychainItem> FindItems(IKeychainItem query)
+        private static IntPtr CreateQueryDictionary(IKeychainItem query)
         {
-            if (!(query is KeychainItem kcQuery))
+            // Just clone the internal CF(Mutable)Dictionary
+            if (query is KeychainCFDictionaryItem keychainItem)
             {
-                throw new ArgumentException($"Must be of type {nameof(KeychainItem)}", nameof(query));
+                return CFDictionaryCreateMutableCopy(kCFAllocatorDefault, 32, keychainItem.Dictionary);
             }
 
-            kcQuery.Dictionary.Add(kSecMatchLimit, kSecMatchLimitAll);
-            kcQuery.Dictionary.Add(kSecReturnAttributes, kCFBooleanTrue);
-            kcQuery.Dictionary.Add(kSecReturnData, kCFBooleanFalse);
+            // Copy all properties in to the dictionary
+            IntPtr dict = CFDictionaryCreateMutable(kCFAllocatorDefault, 32, IntPtr.Zero, IntPtr.Zero);
 
-            int copyResult = SecItemCopyMatching(kcQuery.Dictionary.DangerousGetHandle(), out IntPtr resultPtr);
+            switch (query.Type)
+            {
+                case KeychainItemType.GenericPassword:
+                    CFDictionaryAddValue(dict, kSecClass, kSecClassGenericPassword);
+                    break;
+                case KeychainItemType.InternetPassword:
+                    CFDictionaryAddValue(dict, kSecClass, kSecClassInternetPassword);
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException();
+            }
+
+            // TODO
+            //CFDictionaryAddValue(dict, kSecAttrAuthenticationType, ?);
+            //CFDictionaryAddValue(dict, kSecAttrProtocol, ?);
+
+            CFDictionaryAddValue(dict, kSecAttrAccount, CFString.Create(query.Account));
+            CFDictionaryAddValue(dict, kSecAttrLabel,   CFString.Create(query.Label));
+            CFDictionaryAddValue(dict, kSecAttrService, CFString.Create(query.Service));
+            CFDictionaryAddValue(dict, kSecAttrServer,  CFString.Create(query.Server));
+            CFDictionaryAddValue(dict, kSecAttrPath,    CFString.Create(query.Path));
+            CFDictionaryAddValue(dict, kSecAttrPort,    CFNumber.Create(query.Port));
+
+            CFDictionaryAddValue(dict, kSecUseDataProtectionKeychain,
+                query.UseDataProtectionKeychain ? kCFBooleanTrue : kCFBooleanFalse);
+
+            return dict;
+        }
+
+        public IEnumerable<IKeychainItem> FindItems(IKeychainItem query)
+        {
+            IntPtr queryDict = CFDictionaryCreateMutable(kCFAllocatorDefault, 32, IntPtr.Zero, IntPtr.Zero);
+
+            CFDictionarySetValue(queryDict, kSecMatchLimit, kSecMatchLimitAll);
+            CFDictionarySetValue(queryDict, kSecReturnAttributes, kCFBooleanTrue);
+            CFDictionarySetValue(queryDict, kSecReturnData, kCFBooleanFalse);
+
+            int copyResult = SecItemCopyMatching(queryDict, out IntPtr resultPtr);
 
             switch (copyResult)
             {
-                case OK:
-                    CFType[] array = CFArray.ToArray(resultPtr);
-                    foreach (CFDictionary dict in array.OfType<CFDictionary>())
+                case errSecSuccess:
+                    int count = CFArrayGetCount(resultPtr);
+                    for (int i = 0; i < count; i++)
                     {
-                        yield return new KeychainItem(dict);
+                        IntPtr itemDict = CFArrayGetValueAtIndex(resultPtr, i);
+                        yield return new KeychainCFDictionaryItem(itemDict);
                     }
                     break;
 
-                case ErrorSecItemNotFound:
+                case errSecItemNotFound:
                     yield break;
 
                 default:
@@ -284,21 +345,18 @@ namespace Mjcheetham.SecureStorage.MacOS
 
         public bool DeleteItem(IKeychainItem query)
         {
-            if (!(query is KeychainItem kcQuery))
-            {
-                throw new ArgumentException($"Must be of type {nameof(KeychainItem)}", nameof(query));
-            }
+            IntPtr queryDict = CFDictionaryCreateMutable(kCFAllocatorDefault, 32, IntPtr.Zero, IntPtr.Zero);
 
-            kcQuery.Dictionary.SetValue(kSecMatchLimit, kSecMatchLimitOne);
+            CFDictionarySetValue(queryDict, kSecMatchLimit, kSecMatchLimitOne);
 
-            int deleteResult = SecItemDelete(kcQuery.Dictionary.DangerousGetHandle());
+            int deleteResult = SecItemDelete(queryDict);
 
             switch (deleteResult)
             {
-                case OK:
+                case errSecSuccess:
                     return true;
 
-                case ErrorSecItemNotFound:
+                case errSecItemNotFound:
                     return false;
 
                 default:
@@ -309,16 +367,15 @@ namespace Mjcheetham.SecureStorage.MacOS
 
         public void AddItem(IKeychainItem item)
         {
-            if (!(item is KeychainItem kcItem))
-            {
-                throw new ArgumentException($"Must be of type {nameof(KeychainItem)}", nameof(item));
-            }
+            IntPtr itemDict = CFDictionaryCreateMutable(kCFAllocatorDefault, 32, IntPtr.Zero, IntPtr.Zero);
 
-            int addResult = SecItemAdd(kcItem.Dictionary.DangerousGetHandle(), out IntPtr _);
+            // TODO: populate CFDictionary
+
+            int addResult = SecItemAdd(itemDict, out IntPtr _);
 
             switch (addResult)
             {
-                case OK:
+                case errSecSuccess:
                     return;
 
                 default:
@@ -326,30 +383,51 @@ namespace Mjcheetham.SecureStorage.MacOS
                     return;
             }
         }
+
+        private static void ThrowIfError(int error, string defaultErrorMessage = "Unknown error.")
+        {
+            switch (error)
+            {
+                case errSecSuccess:
+                    return;
+                case errSecNoSuchKeychain:
+                    throw new InteropException("The keychain does not exist.", error);
+                case errSecInvalidKeychain:
+                    throw new InteropException("The keychain is not valid.", error);
+                case errSecAuthFailed:
+                    throw new InteropException("Authorization/Authentication failed.", error);
+                case errSecDuplicateItem:
+                    throw new InteropException("The item already exists.", error);
+                case errSecItemNotFound:
+                    throw new InteropException("The item cannot be found.", error);
+                case errSecInteractionNotAllowed:
+                    throw new InteropException("Interaction with the Security Server is not allowed.", error);
+                case errSecInteractionRequired:
+                    throw new InteropException("User interaction is required.", error);
+                case errSecNoSuchAttr:
+                    throw new InteropException("The attribute does not exist.", error);
+                default:
+                    throw new InteropException(defaultErrorMessage, error);
+            }
+        }
     }
 
-    public class KeychainItem : IKeychainItem
+    internal class KeychainCFDictionaryItem : IKeychainItem
     {
-        private readonly CFDictionary _dict;
+        private readonly IntPtr _dict;
 
-        public KeychainItem(KeychainItemType type)
-            : this(new CFDictionary(32))
-        {
-            Type = type;
-        }
+        public IntPtr Dictionary => _dict;
 
-        internal KeychainItem(CFDictionary dict)
+        public KeychainCFDictionaryItem(IntPtr dict)
         {
             _dict = dict;
         }
-
-        internal CFDictionary Dictionary => _dict;
 
         public KeychainItemType Type
         {
             get
             {
-                IntPtr value = _dict[kSecClass];
+                IntPtr value = CFDictionaryGetValue(_dict, kSecClass);
                 if (value == kSecClassGenericPassword)
                 {
                     return KeychainItemType.GenericPassword;
@@ -367,11 +445,11 @@ namespace Mjcheetham.SecureStorage.MacOS
                 switch (value)
                 {
                     case KeychainItemType.GenericPassword:
-                        _dict[kSecClass] = kSecClassGenericPassword;
+                        CFDictionarySetValue(_dict, kSecClass, kSecClassGenericPassword);
                         break;
 
                     case KeychainItemType.InternetPassword:
-                        _dict[kSecClass] = kSecClassInternetPassword;
+                        CFDictionarySetValue(_dict, kSecClass, kSecClassInternetPassword);
                         break;
 
                     default:
@@ -384,10 +462,14 @@ namespace Mjcheetham.SecureStorage.MacOS
         {
             get
             {
-                if (_dict.TryGetValue(kSecAttrAuthenticationType, out IntPtr valuePtr))
+                IntPtr valuePtr = CFDictionaryGetValue(_dict, kSecAttrAuthenticationType);
+                if (valuePtr != IntPtr.Zero)
                 {
-                    string code = CFString.ToString(valuePtr);
-                    return (SecAuthenticationType) FourCharCodeUtils.ToUInt32(code);
+                    byte[] code = CFString.ToBytes(valuePtr, CFStringEncoding.kCFStringEncodingUTF8);
+                    if (code != null)
+                    {
+                        return (SecAuthenticationType) FourCharCodeUtils.ToUInt32(code);
+                    }
                 }
 
                 return SecAuthenticationType.Any;
@@ -396,12 +478,12 @@ namespace Mjcheetham.SecureStorage.MacOS
             {
                 if (value == SecAuthenticationType.Any)
                 {
-                    _dict.Remove(kSecAttrAuthenticationType);
+                    CFDictionaryRemoveValue(_dict, kSecAttrAuthenticationType);
                 }
                 else
                 {
-                    string code = FourCharCodeUtils.ToString((uint) value);
-                    _dict[kSecAttrAuthenticationType] = CFString.CreateHandle(code);
+                    byte[] codeBytes = FourCharCodeUtils.ToBytes((uint) value);
+                    CFDictionarySetValue(_dict, kSecAttrAuthenticationType, CFString.Create(codeBytes));
                 }
             }
         }
@@ -410,10 +492,14 @@ namespace Mjcheetham.SecureStorage.MacOS
         {
             get
             {
-                if (_dict.TryGetValue(kSecAttrProtocol, out IntPtr valuePtr))
+                IntPtr valuePtr = CFDictionaryGetValue(_dict, kSecAttrProtocol);
+                if (valuePtr != IntPtr.Zero)
                 {
-                    string code = CFString.ToString(valuePtr);
-                    return (SecProtocolType) FourCharCodeUtils.ToUInt32(code);
+                    byte[] code = CFString.ToBytes(valuePtr, CFStringEncoding.kCFStringEncodingUTF8);
+                    if (code != null)
+                    {
+                        return (SecProtocolType) FourCharCodeUtils.ToUInt32(code);
+                    }
                 }
 
                 return SecProtocolType.Any;
@@ -422,78 +508,167 @@ namespace Mjcheetham.SecureStorage.MacOS
             {
                 if (value == SecProtocolType.Any)
                 {
-                    _dict.Remove(kSecAttrProtocol);
+                    CFDictionaryRemoveValue(_dict, kSecAttrProtocol);
                 }
                 else
                 {
-                    string code = FourCharCodeUtils.ToString((uint) value);
-                    _dict[kSecAttrProtocol] = CFString.CreateHandle(code);
+                    byte[] codeBytes = FourCharCodeUtils.ToBytes((uint) value);
+                    CFDictionarySetValue(_dict, kSecAttrProtocol, CFString.Create(codeBytes));
                 }
             }
         }
 
         public byte[] Data
         {
-            get => _dict.TryGetValue(kSecValueData, out IntPtr valuePtr) ? CFData.ToArray(valuePtr) : null;
+            get
+            {
+                IntPtr valuePtr = CFDictionaryGetValue(_dict, kSecValueData);
+                return valuePtr != IntPtr.Zero ? CFData.ToArray(valuePtr) : null;
+            }
             set
             {
                 if (value is null)
                 {
-                    _dict.Remove(kSecValueData);
+                    CFDictionaryRemoveValue(_dict, kSecValueData);
                 }
                 else
                 {
-                    _dict.SetValue(kSecValueData, CFData.CreateHandle(value));
+                    CFDictionarySetValue(_dict, kSecValueData, CFData.Create(value));
                 }
             }
         }
 
         public string Account
         {
-            get => _dict.GetString(kSecAttrAccount);
-            set => _dict.SetString(kSecAttrAccount, value);
-        }
-
-        public string Label
-        {
-            get => _dict.GetString(kSecAttrLabel);
-            set => _dict.SetString(kSecAttrLabel, value);
-        }
-
-        public string Service
-        {
-            get => _dict.GetString(kSecAttrService);
-            set => _dict.SetString(kSecAttrService, value);
-        }
-
-        public string Server
-        {
-            get => _dict.GetString(kSecAttrServer);
-            set => _dict.SetString(kSecAttrServer, value);
-        }
-
-        public string Path
-        {
-            get => _dict.GetString(kSecAttrPath);
-            set => _dict.SetString(kSecAttrPath, value);
-        }
-
-        public short Port
-        {
-            get => _dict.TryGetValue(kSecAttrPort, out IntPtr valuePtr) ? CFNumber.ToInt16(valuePtr) : (short) 0;
+            get
+            {
+                IntPtr valuePtr = CFDictionaryGetValue(_dict, kSecAttrAccount);
+                return valuePtr != IntPtr.Zero ? CFString.ToString(valuePtr) : null;
+            }
             set
             {
-                if (value > 0)
+                if (value is null)
                 {
-                    _dict.SetValue(kSecAttrPort, CFNumber.CreateHandle(value));
+                    CFDictionaryRemoveValue(_dict, kSecAttrAccount);
                 }
                 else
                 {
-                    _dict.Remove(kSecAttrPort);
+                    CFDictionarySetValue(_dict, kSecAttrAccount, CFString.Create(value));
                 }
             }
         }
 
-        public void Dispose() => _dict.Dispose();
+        public string Label
+        {
+            get
+            {
+                IntPtr valuePtr = CFDictionaryGetValue(_dict, kSecAttrLabel);
+                return valuePtr != IntPtr.Zero ? CFString.ToString(valuePtr) : null;
+            }
+            set
+            {
+                if (value is null)
+                {
+                    CFDictionaryRemoveValue(_dict, kSecAttrLabel);
+                }
+                else
+                {
+                    CFDictionarySetValue(_dict, kSecAttrLabel, CFString.Create(value));
+                }
+            }
+        }
+
+        public string Service
+        {
+            get
+            {
+                IntPtr valuePtr = CFDictionaryGetValue(_dict, kSecAttrService);
+                return valuePtr != IntPtr.Zero ? CFString.ToString(valuePtr) : null;
+            }
+            set
+            {
+                if (value is null)
+                {
+                    CFDictionaryRemoveValue(_dict, kSecAttrService);
+                }
+                else
+                {
+                    CFDictionarySetValue(_dict, kSecAttrService, CFString.Create(value));
+                }
+            }
+        }
+
+        public string Server
+        {
+            get
+            {
+                IntPtr valuePtr = CFDictionaryGetValue(_dict, kSecAttrServer);
+                return valuePtr != IntPtr.Zero ? CFString.ToString(valuePtr) : null;
+            }
+            set
+            {
+                if (value is null)
+                {
+                    CFDictionaryRemoveValue(_dict, kSecAttrServer);
+                }
+                else
+                {
+                    CFDictionarySetValue(_dict, kSecAttrServer, CFString.Create(value));
+                }
+            }
+        }
+
+        public string Path
+        {
+            get
+            {
+                IntPtr valuePtr = CFDictionaryGetValue(_dict, kSecAttrPath);
+                return valuePtr != IntPtr.Zero ? CFString.ToString(valuePtr) : null;
+            }
+            set
+            {
+                if (value is null)
+                {
+                    CFDictionaryRemoveValue(_dict, kSecAttrPath);
+                }
+                else
+                {
+                    CFDictionarySetValue(_dict, kSecAttrPath, CFString.Create(value));
+                }
+            }
+        }
+
+        public short Port
+        {
+            get
+            {
+                IntPtr valuePtr = CFDictionaryGetValue(_dict, kSecAttrPort);
+                return valuePtr != IntPtr.Zero ? CFNumber.ToInt16(valuePtr) : (short) 0;
+            }
+            set
+            {
+                if (value > 0)
+                {
+                    CFDictionarySetValue(_dict, kSecAttrPort, CFNumber.Create(value));
+                }
+                else
+                {
+                    CFDictionaryRemoveValue(_dict, kSecAttrPort);
+                }
+            }
+        }
+
+        public bool UseDataProtectionKeychain
+        {
+            get
+            {
+                IntPtr valuePtr = CFDictionaryGetValue(_dict, kSecUseDataProtectionKeychain);
+                return valuePtr == kCFBooleanTrue;
+            }
+            set => CFDictionarySetValue(_dict, kSecUseDataProtectionKeychain,
+                value ? kCFBooleanTrue : kCFBooleanFalse);
+        }
+
+        public void Dispose() => CFRelease(_dict);
     }
 }

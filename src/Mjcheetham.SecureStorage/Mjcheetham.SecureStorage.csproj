@@ -17,4 +17,8 @@
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     </PropertyGroup>
 
+    <ItemGroup>
+      <PackageReference Include="System.Native.Apple" Version="1.0.0" />
+    </ItemGroup>
+
 </Project>

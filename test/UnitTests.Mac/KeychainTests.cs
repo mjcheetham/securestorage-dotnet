@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using Mjcheetham.SecureStorage.MacOS;
-using Mjcheetham.SecureStorage.MacOS.Interop;
 using Xunit;
 
 namespace Mjcheetham.SecureStorage.UnitTests
@@ -15,21 +14,15 @@ namespace Mjcheetham.SecureStorage.UnitTests
         {
             var keychain = new Keychain();
 
-            using var query = new KeychainItem(KeychainItemType.InternetPassword)
-            {
-                Account = "mjcheetham"
-            };
+            using var query = KeychainItem.Create(KeychainItemType.InternetPassword);
+            query.Account = "mjcheetham";
 
             using IKeychainItem item = keychain.FindItem(query, false);
 
-            using var newItem = new KeychainItem(KeychainItemType.GenericPassword)
-            {
-                Account = "alice",
-                Service = "git:example.com",
-                Label = "test-test-test"
-            };
-
-            SecProtocolType proto = item.Protocol;
+            using var newItem = KeychainItem.Create(KeychainItemType.GenericPassword);
+            newItem.Account = "alice";
+            newItem.Service = "git:example.com";
+            newItem.Label = "test-test-test";
 
             keychain.AddItem(newItem);
 
@@ -40,6 +33,8 @@ namespace Mjcheetham.SecureStorage.UnitTests
             string path = item.Path;
             short port = item.Port;
             byte[] data = item.Data;
+            var protocol = item.Protocol;
+            var authType = item.AuthenticationType;
             string password = Encoding.UTF8.GetString(data);
         }
 
